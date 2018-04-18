@@ -183,7 +183,7 @@ class CommandNode:
             pid = os.fork()
             if pid == 0:
                 # child process
-                os.execv(self.command, self.args)
+                os.execv(self.full_command, self.args)
             else:
                 # parent process
                 self.pid = pid
@@ -191,6 +191,19 @@ class CommandNode:
     def wait(self):
         if self.pid is not None:
             os.waitpid(self.pid, 0)
+
+    @property
+    def full_command(self):
+        if os.path.exists(self.command):
+            return self.command
+
+        path = os.environ['PATH'].split(':')
+        for di in path:
+            cmd = os.path.join(di, self.command)
+            if os.path.exists(cmd):
+                return cmd
+
+        raise FileNotFoundError('command not found')
 
 if __name__ == "__main__":
     main()
