@@ -1,4 +1,5 @@
 import os
+import sys
 
 import re
 
@@ -12,6 +13,7 @@ def main():
 class Shell:
     def __init__(self):
         self.builtins = {
+            'exit': self._builtin_exit,
             'pwd': self._builtin_pwd,
             'cd': self._builtin_cd
         }
@@ -22,7 +24,7 @@ class Shell:
                 line = self.readline()
                 self.execute(line)
             except EOFError:
-                break
+                sys.exit(0)
 
     def readline(self):
         return input('$ ')
@@ -34,6 +36,9 @@ class Shell:
         root = parser.parse()
         root.execute(self.builtins)
         root.wait()
+
+    def _builtin_exit(self, name, n=0):
+        sys.exit(n)
 
     def _builtin_pwd(self, name):
         wd = os.getcwd()
