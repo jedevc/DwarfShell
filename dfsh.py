@@ -1,4 +1,4 @@
-import subprocess
+import os
 
 import re
 
@@ -162,14 +162,19 @@ class CommandNode:
         self.command = command
         self.args = args
 
-        self.proc = None
+        self.pid = None
 
     def execute(self):
-        self.proc = subprocess.Popen([self.command, *self.args])
+        pid = os.fork()
+        if pid == 0:
+            # child process
+            os.execv(self.command, [self.command, *self.args])
+        else:
+            self.pid = pid
 
     def wait(self):
-        if self.proc:
-            self.proc.wait()
+        if self.pid is not None:
+            os.waitpid(self.pid, 0)
 
 if __name__ == "__main__":
     main()
