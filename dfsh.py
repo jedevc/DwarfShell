@@ -162,7 +162,6 @@ class Parser:
         if result:
             return result
         else:
-            print(self.token.lexeme)
             raise ValueError(f'expected token to be {ttype}, instead got {self.token.ttype}')
 
 class Node:
