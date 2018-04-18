@@ -28,7 +28,9 @@ class Shell:
         tokens = Tokenizer(line)
 
         parser = Parser(tokens)
-        parser.command()
+        root = parser.parse()
+        root.execute()
+        root.wait()
 
 class TokenType(Enum):
     WORD = enum.auto()
@@ -111,6 +113,23 @@ class Parser:
 
         self.next()
 
+    def parse(self):
+        return self.command()
+
+    def command(self):
+        if self.accept(TokenType.WORD):
+            command = self.last.lexeme
+
+            args = []
+            while self.accept(TokenType.WORD):
+                args.append(self.last.lexeme)
+
+            self.expect(TokenType.EOF)
+
+            return CommandNode(command, args)
+        else:
+            return None
+
     def next(self):
         self.last = self.token
         self.token = next(self.tokens, None)
@@ -131,20 +150,26 @@ class Parser:
             print(self.token.lexeme)
             raise ValueError(f'expected token to be {ttype}, instead got {self.token.ttype}')
 
-    def command(self):
-        if self.accept(TokenType.WORD):
-            command = self.last.lexeme
+class Node:
+    def execute(self):
+        pass
 
-            args = []
-            while self.accept(TokenType.WORD):
-                args.append(self.last.lexeme)
+    def wait(self):
+        pass
 
-            self.expect(TokenType.EOF)
+class CommandNode:
+    def __init__(self, command, args):
+        self.command = command
+        self.args = args
 
-            proc = subprocess.Popen([command, *args])
-            proc.wait()
-        else:
-            return None
+        self.proc = None
+
+    def execute(self):
+        self.proc = subprocess.Popen([self.command, *self.args])
+
+    def wait(self):
+        if self.proc:
+            self.proc.wait()
 
 if __name__ == "__main__":
     main()
