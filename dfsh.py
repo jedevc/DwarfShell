@@ -11,7 +11,10 @@ def main():
 
 class Shell:
     def __init__(self):
-        pass
+        self.builtins = {
+            'pwd': self._builtin_pwd,
+            'cd': self._builtin_cd
+        }
 
     def run(self):
         while True:
@@ -29,8 +32,15 @@ class Shell:
 
         parser = Parser(tokens)
         root = parser.parse()
-        root.execute()
+        root.execute(self.builtins)
         root.wait()
+
+    def _builtin_pwd(self, name):
+        wd = os.getcwd()
+        print(wd)
+
+    def _builtin_cd(self, name, d):
+        os.chdir(d)
 
 class TokenType(Enum):
     WORD = enum.auto()
@@ -151,7 +161,7 @@ class Parser:
             raise ValueError(f'expected token to be {ttype}, instead got {self.token.ttype}')
 
 class Node:
-    def execute(self):
+    def execute(self, builtins):
         pass
 
     def wait(self):
@@ -160,17 +170,23 @@ class Node:
 class CommandNode:
     def __init__(self, command, args):
         self.command = command
+
         self.args = args
+        self.args.insert(0, command)
 
         self.pid = None
 
-    def execute(self):
-        pid = os.fork()
-        if pid == 0:
-            # child process
-            os.execv(self.command, [self.command, *self.args])
+    def execute(self, builtins):
+        if self.command in builtins:
+            builtins[self.command](*self.args)
         else:
-            self.pid = pid
+            pid = os.fork()
+            if pid == 0:
+                # child process
+                os.execv(self.command, self.args)
+            else:
+                # parent process
+                self.pid = pid
 
     def wait(self):
         if self.pid is not None:
