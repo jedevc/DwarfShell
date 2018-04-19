@@ -28,3 +28,9 @@ using python. Make sure you're using python3.
 
 If you experience any issues, please report them
 [here](https://github.com/jedevc/DwarfShell/issues/new).
+
+## License
+
+DwarfShell uses the Unlicense and so is completely free and released into the
+public domain. Do whatever you feel like doing with it, although some
+attribution might be nice :)
