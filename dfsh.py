@@ -3,6 +3,8 @@ import sys
 
 import re
 
+import contextlib
+
 import enum
 from enum import Enum
 
@@ -73,6 +75,9 @@ class TokenType(Enum):
     '''
 
     WORD = enum.auto()
+    REDIRECT_OUT = enum.auto()
+    REDIRECT_APPEND = enum.auto()
+    REDIRECT_IN = enum.auto()
     EOF = enum.auto()
     UNKNOWN = enum.auto()
 
@@ -140,6 +145,17 @@ class Tokenizer:
         if self.char == None:
             # end-of-file
             return Token(TokenType.EOF, None, self.position)
+        elif self.char == '>':
+            start = self.position
+            if self.read() == '>':
+                self.read()
+                return Token(TokenType.REDIRECT_APPEND, None, start)
+            else:
+                return Token(TokenType.REDIRECT_OUT, None, start)
+        elif self.char == '<':
+            token = Token(TokenType.REDIRECT_IN, None, self.position)
+            self.read()
+            return token
         elif self.char in '\'"':
             # quoted word
             end = self.char
@@ -219,9 +235,34 @@ class Parser:
             while self.accept(TokenType.WORD):
                 args.append(self.last.lexeme)
 
+            redirs = self.redirections()
+
             self.expect(TokenType.EOF)
 
-            return CommandNode(command, args)
+            return CommandNode(command, args, redirs)
+        else:
+            return None
+
+    def redirections(self):
+        redirs = []
+        redir = self.redirection()
+        while redir:
+            redirs.append(redir)
+            redir = self.redirection()
+
+        return RedirectionsNode(redirs)
+
+    def redirection(self):
+        # TODO: recognize other types of redirections
+        if self.accept(TokenType.REDIRECT_OUT):
+            filename = self.expect(TokenType.WORD).lexeme
+            return RedirectionNode(1, (filename, os.O_CREAT | os.O_WRONLY))
+        elif self.accept(TokenType.REDIRECT_APPEND):
+            filename = self.expect(TokenType.WORD).lexeme
+            return RedirectionNode(1, (filename, os.O_CREAT | os.O_WRONLY | os.O_APPEND))
+        elif self.accept(TokenType.REDIRECT_IN):
+            filename = self.expect(TokenType.WORD).lexeme
+            return RedirectionNode(0, (filename, os.O_RDONLY))
         else:
             return None
 
@@ -271,22 +312,26 @@ class CommandNode:
     A node that contains a single shell command.
     '''
 
-    def __init__(self, command, args):
+    def __init__(self, command, args, redirections):
         self.command = command
 
         self.args = args
         self.args.insert(0, command)
 
+        self.redirections = redirections
+
         self.pid = None
 
     def execute(self, builtins):
         if self.command in builtins:
-            builtins[self.command](*self.args)
+            with self.redirections:
+                builtins[self.command](*self.args)
         else:
             pid = os.fork()
             if pid == 0:
                 # child process
-                os.execv(self.full_command, self.args)
+                with self.redirections:
+                    os.execv(self.full_command, self.args)
             else:
                 # parent process
                 self.pid = pid
@@ -307,6 +352,40 @@ class CommandNode:
                 return cmd
 
         raise FileNotFoundError('command not found')
+
+class RedirectionNode:
+    def __init__(self, fd, newfd):
+        self.fd = fd
+        self.backup = os.dup(fd)
+
+        try:
+            filename, mode = newfd
+            self.newfd = os.open(filename, mode)
+        except TypeError:
+            self.newfd = newfd
+
+    def __enter__(self):
+        os.dup2(self.newfd, self.fd)
+
+    def __exit__(self, type, value, traceback):
+        os.dup2(self.backup, self.fd)
+
+class RedirectionsNode:
+    def __init__(self, redirections):
+        self.redirections = redirections
+
+        self.stack = None
+
+    def __enter__(self):
+        if len(self.redirections) > 0:
+            self.stack = contextlib.ExitStack()
+            for redirection in self.redirections:
+                self.stack.enter_context(redirection)
+
+    def __exit__(self, type, value, traceback):
+        if self.stack:
+            self.stack.close()
+            self.stack = None
 
 if __name__ == "__main__":
     main()
