@@ -310,6 +310,11 @@ class Node:
 class CommandNode:
     '''
     A node that contains a single shell command.
+
+    Args:
+        command: The name of the executable to run (will be looked up in PATH).
+        args: The arguments to be passed to the executable.
+        redirections: Various file redirections.
     '''
 
     def __init__(self, command, args, redirections):
@@ -354,6 +359,14 @@ class CommandNode:
         raise FileNotFoundError('command not found')
 
 class RedirectionNode:
+    '''
+    A node that performs a single file redirection.
+
+    Args:
+        fd: The file descriptor to modify.
+        newfd: The new file descriptor.
+    '''
+
     def __init__(self, fd, newfd):
         self.fd = fd
         self.backup = os.dup(fd)
@@ -371,6 +384,13 @@ class RedirectionNode:
         os.dup2(self.backup, self.fd)
 
 class RedirectionsNode:
+    '''
+    A node that performs multiple file redirections.
+
+    Args:
+        redirections: A list of redirections.
+    '''
+
     def __init__(self, redirections):
         self.redirections = redirections
 
