@@ -305,7 +305,7 @@ class Node:
 
         pass
 
-class CommandNode:
+class CommandNode(Node):
     '''
     A node that contains a single shell command.
 
@@ -356,7 +356,7 @@ class CommandNode:
 
         raise FileNotFoundError('command not found')
 
-class RedirectionNode:
+class RedirectionNode(Node):
     '''
     A node that performs a single file redirection.
 
@@ -381,7 +381,7 @@ class RedirectionNode:
     def __exit__(self, type, value, traceback):
         os.dup2(self.backup, self.fd)
 
-class RedirectionsNode:
+class RedirectionsNode(Node):
     '''
     A node that performs multiple file redirections.
 
