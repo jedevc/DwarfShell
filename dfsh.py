@@ -263,7 +263,7 @@ class Parser:
             redirs = self.redirections()
 
             if self.accept(TokenType.PIPE):
-                return PipeNode(command, args, redirs, self.command())
+                return PipeCommandNode(command, args, redirs, self.command())
             else:
                 return CommandNode(command, args, redirs)
         else:
@@ -276,19 +276,19 @@ class Parser:
             redirs.append(redir)
             redir = self.redirection()
 
-        return RedirectionsNode(redirs)
+        return RedirectionsHelper(redirs)
 
     def redirection(self):
         # TODO: recognize other types of redirections
         if self.accept(TokenType.REDIRECT_OUT):
             filename = self.expect(TokenType.WORD).lexeme
-            return RedirectionNode(1, (filename, os.O_CREAT | os.O_WRONLY))
+            return RedirectionHelper(1, (filename, os.O_CREAT | os.O_WRONLY))
         elif self.accept(TokenType.REDIRECT_APPEND):
             filename = self.expect(TokenType.WORD).lexeme
-            return RedirectionNode(1, (filename, os.O_CREAT | os.O_WRONLY | os.O_APPEND))
+            return RedirectionHelper(1, (filename, os.O_CREAT | os.O_WRONLY | os.O_APPEND))
         elif self.accept(TokenType.REDIRECT_IN):
             filename = self.expect(TokenType.WORD).lexeme
-            return RedirectionNode(0, (filename, os.O_RDONLY))
+            return RedirectionHelper(0, (filename, os.O_RDONLY))
         else:
             return None
 
@@ -386,7 +386,7 @@ class CommandNode(Node):
 
         raise FileNotFoundError('command not found')
 
-class PipeNode(CommandNode):
+class PipeCommandNode(CommandNode):
     def __init__(self, command, args, redirections, other):
         super().__init__(command, args, redirections)
 
@@ -394,8 +394,8 @@ class PipeNode(CommandNode):
 
     def execute(self, builtins):
         read, write = os.pipe()
-        pin = RedirectionNode(0, read)
-        pout = RedirectionNode(1, write)
+        pin = RedirectionHelper(0, read)
+        pout = RedirectionHelper(1, write)
 
         if self.command in builtins:
             with pout, self.redirections:
@@ -419,9 +419,9 @@ class PipeNode(CommandNode):
         if self.pid:
             os.waitpid(self.pid, 0)
 
-class RedirectionNode(Node):
+class RedirectionHelper():
     '''
-    A node that performs a single file redirection.
+    Helps perform a single file redirection.
 
     Args:
         fd: The file descriptor to modify.
@@ -447,9 +447,9 @@ class RedirectionNode(Node):
     def __exit__(self, type, value, traceback):
         os.dup2(self.backup, self.fd)
 
-class RedirectionsNode(Node):
+class RedirectionsHelper():
     '''
-    A node that performs multiple file redirections.
+    Helps perform multiple file redirections.
 
     Args:
         redirections: A list of redirections.
