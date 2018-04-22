@@ -377,6 +377,7 @@ class PipeNode(CommandNode):
         if self.command in builtins:
             with pout, self.redirections:
                 builtins[self.command](*self.args)
+                pout.close()
         else:
             pid = os.fork()
             if pid == 0:
@@ -389,8 +390,8 @@ class PipeNode(CommandNode):
                 pout.close()
                 self.pid = pid
 
-                with pin:
-                    self.other.execute(builtins)
+        with pin:
+            self.other.execute(builtins)
 
     def wait(self, *args):
         super().wait(*args)
