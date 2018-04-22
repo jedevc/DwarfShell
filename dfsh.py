@@ -60,7 +60,6 @@ class Shell:
         root = parser.parse()
         if root:
             root.execute(self.builtins)
-            root.wait()
 
     # various shell builtins
     def _builtin_exit(self, name, n=0):
@@ -311,13 +310,6 @@ class Node:
 
         pass
 
-    def wait(self):
-        '''
-        Wait for the execution of the node to complete.
-        '''
-
-        pass
-
 class CommandNode(Node):
     '''
     A node that contains a single shell command.
@@ -351,10 +343,7 @@ class CommandNode(Node):
             else:
                 # parent process
                 self.pid = pid
-
-    def wait(self):
-        if self.pid is not None:
-            os.waitpid(self.pid, 0)
+                os.waitpid(self.pid, 0)
 
     @property
     def full_command(self):
@@ -399,9 +388,8 @@ class PipeNode(CommandNode):
         with pin:
             self.other.execute(builtins)
 
-    def wait(self, *args):
-        super().wait(*args)
-        self.other.wait(*args)
+        if self.pid:
+            os.waitpid(self.pid, 0)
 
 class RedirectionNode(Node):
     '''
