@@ -60,6 +60,7 @@ class Shell:
         root = parser.parse()
         if root:
             root.execute(self.builtins)
+            root.wait()
 
     # various shell builtins
     def _builtin_exit(self, name, n=0):
@@ -262,10 +263,11 @@ class Parser:
 
             redirs = self.redirections()
 
+            node = CommandNode(command, args, redirs)
             if self.accept(TokenType.PIPE):
-                return PipeCommandNode(command, args, redirs, self.command())
+                return PipeNode(node, self.command())
             else:
-                return CommandNode(command, args, redirs)
+                return node
         else:
             return NullNode()
 
@@ -326,6 +328,13 @@ class Node:
 
         pass
 
+    def wait(self):
+        '''
+        Wait for the execution of the node to finish.
+        '''
+
+        pass
+
 class NullNode(Node):
     pass
 
@@ -336,7 +345,31 @@ class DoubleNode(Node):
 
     def execute(self, *args):
         self.first.execute(*args)
+        self.first.wait()
+
         self.second.execute(*args)
+        self.second.wait()
+
+class PipeNode(DoubleNode):
+    def __init__(self, first, second):
+        self.first = first
+        self.second = second
+
+    def execute(self, builtins):
+        read, write = os.pipe()
+        pin = RedirectionHelper(0, read)
+        pout = RedirectionHelper(1, write)
+
+        with pout:
+            self.first.execute(builtins)
+        pout.close()
+
+        with pin:
+            self.second.execute(builtins)
+
+    def wait(self):
+        self.first.wait()
+        self.second.wait()
 
 class CommandNode(Node):
     '''
@@ -371,7 +404,10 @@ class CommandNode(Node):
             else:
                 # parent process
                 self.pid = pid
-                os.waitpid(self.pid, 0)
+
+    def wait(self):
+        if self.pid:
+            os.waitpid(self.pid, 0)
 
     @property
     def full_command(self):
@@ -385,39 +421,6 @@ class CommandNode(Node):
                 return cmd
 
         raise FileNotFoundError('command not found')
-
-class PipeCommandNode(CommandNode):
-    def __init__(self, command, args, redirections, other):
-        super().__init__(command, args, redirections)
-
-        self.other = other
-
-    def execute(self, builtins):
-        read, write = os.pipe()
-        pin = RedirectionHelper(0, read)
-        pout = RedirectionHelper(1, write)
-
-        if self.command in builtins:
-            with pout, self.redirections:
-                builtins[self.command](*self.args)
-                pout.close()
-        else:
-            pid = os.fork()
-            if pid == 0:
-                # child process
-                pin.close()
-                with pout, self.redirections:
-                    os.execv(self.full_command, self.args)
-            else:
-                # parent process
-                pout.close()
-                self.pid = pid
-
-        with pin:
-            self.other.execute(builtins)
-
-        if self.pid:
-            os.waitpid(self.pid, 0)
 
 class RedirectionHelper():
     '''
