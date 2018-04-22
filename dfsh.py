@@ -261,9 +261,12 @@ class Parser:
             while self.accept(TokenType.WORD):
                 args.append(self.last.lexeme)
 
-            redirs = self.redirections()
+            node = CommandNode(command, args)
 
-            node = CommandNode(command, args, redirs)
+            redirs = self.redirections()
+            if redirs:
+                node = RedirectionsNode(node, redirs)
+
             if self.accept(TokenType.PIPE):
                 return PipeNode(node, self.command())
             else:
@@ -278,13 +281,16 @@ class Parser:
             redirs.append(redir)
             redir = self.redirection()
 
-        return RedirectionsHelper(redirs)
+        if len(redirs) > 0:
+            return RedirectionsHelper(redirs)
+        else:
+            return None
 
     def redirection(self):
         # TODO: recognize other types of redirections
         if self.accept(TokenType.REDIRECT_OUT):
             filename = self.expect(TokenType.WORD).lexeme
-            return RedirectionHelper(1, (filename, os.O_CREAT | os.O_WRONLY))
+            return RedirectionHelper(1, (filename, os.O_CREAT | os.O_WRONLY | os.O_TRUNC))
         elif self.accept(TokenType.REDIRECT_APPEND):
             filename = self.expect(TokenType.WORD).lexeme
             return RedirectionHelper(1, (filename, os.O_CREAT | os.O_WRONLY | os.O_APPEND))
@@ -378,29 +384,24 @@ class CommandNode(Node):
     Args:
         command: The name of the executable to run (will be looked up in PATH).
         args: The arguments to be passed to the executable.
-        redirections: Various file redirections.
     '''
 
-    def __init__(self, command, args, redirections):
+    def __init__(self, command, args):
         self.command = command
 
         self.args = args
         self.args.insert(0, command)
 
-        self.redirections = redirections
-
         self.pid = None
 
     def execute(self, builtins):
         if self.command in builtins:
-            with self.redirections:
-                builtins[self.command](*self.args)
+            builtins[self.command](*self.args)
         else:
             pid = os.fork()
             if pid == 0:
                 # child process
-                with self.redirections:
-                    os.execv(self.full_command, self.args)
+                os.execv(self.full_command, self.args)
             else:
                 # parent process
                 self.pid = pid
@@ -422,7 +423,27 @@ class CommandNode(Node):
 
         raise FileNotFoundError('command not found')
 
-class RedirectionHelper():
+class RedirectionsNode(Node):
+    '''
+    A node that performs a number of IO redirections.
+
+    Args:
+        base: The base node to operate on.
+        redirections: The redirections to apply.
+    '''
+
+    def __init__(self, base, redirections):
+        self.base = base
+        self.redirections = redirections
+
+    def execute(self, builtins):
+        with self.redirections:
+            self.base.execute(builtins)
+
+    def wait(self):
+        self.base.wait()
+
+class RedirectionHelper:
     '''
     Helps perform a single file redirection.
 
@@ -450,7 +471,7 @@ class RedirectionHelper():
     def __exit__(self, type, value, traceback):
         os.dup2(self.backup, self.fd)
 
-class RedirectionsHelper():
+class RedirectionsHelper:
     '''
     Helps perform multiple file redirections.
 
