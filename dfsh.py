@@ -248,10 +248,12 @@ class Parser:
         base = self.command()
         if self.accept(TokenType.COMMAND_END):
             other = self.commands()
-            if other:
+            if base and other:
                 return DoubleNode(base, other)
-
-        return base
+            else:
+                return other
+        else:
+            return base
 
     def command(self):
         if self.accept(TokenType.WORD):
@@ -272,7 +274,7 @@ class Parser:
             else:
                 return node
         else:
-            return NullNode()
+            return None
 
     def redirections(self):
         redirs = []
@@ -340,13 +342,6 @@ class Node:
         '''
 
         pass
-
-class NullNode(Node):
-    '''
-    A node that does nothing.
-    '''
-
-    pass
 
 class DoubleNode(Node):
     '''
