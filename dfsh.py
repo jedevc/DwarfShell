@@ -76,6 +76,7 @@ class TokenType(Enum):
     REDIRECT_OUT = enum.auto()
     REDIRECT_APPEND = enum.auto()
     REDIRECT_IN = enum.auto()
+    PIPE = enum.auto()
     EOF = enum.auto()
     UNKNOWN = enum.auto()
 
@@ -152,6 +153,10 @@ class Tokenizer:
                 return Token(TokenType.REDIRECT_OUT, None, start)
         elif self.char == '<':
             token = Token(TokenType.REDIRECT_IN, None, self.position)
+            self.read()
+            return token
+        elif self.char == '|':
+            token = Token(TokenType.PIPE, None, self.position)
             self.read()
             return token
         elif self.char in '\'"':
@@ -235,9 +240,11 @@ class Parser:
 
             redirs = self.redirections()
 
-            self.expect(TokenType.EOF)
-
-            return CommandNode(command, args, redirs)
+            if self.accept(TokenType.PIPE):
+                return PipeNode(command, args, redirs, self.command())
+            else:
+                self.expect(TokenType.EOF)
+                return CommandNode(command, args, redirs)
         else:
             return None
 
@@ -356,6 +363,39 @@ class CommandNode(Node):
 
         raise FileNotFoundError('command not found')
 
+class PipeNode(CommandNode):
+    def __init__(self, command, args, redirections, other):
+        super().__init__(command, args, redirections)
+
+        self.other = other
+
+    def execute(self, builtins):
+        read, write = os.pipe()
+        pin = RedirectionNode(0, read)
+        pout = RedirectionNode(1, write)
+
+        if self.command in builtins:
+            with pout, self.redirections:
+                builtins[self.command](*self.args)
+        else:
+            pid = os.fork()
+            if pid == 0:
+                # child process
+                pin.close()
+                with pout, self.redirections:
+                    os.execv(self.full_command, self.args)
+            else:
+                # parent process
+                pout.close()
+                self.pid = pid
+
+                with pin:
+                    self.other.execute(builtins)
+
+    def wait(self, *args):
+        super().wait(*args)
+        self.other.wait(*args)
+
 class RedirectionNode(Node):
     '''
     A node that performs a single file redirection.
@@ -374,6 +414,9 @@ class RedirectionNode(Node):
             self.newfd = os.open(filename, mode)
         except TypeError:
             self.newfd = newfd
+
+    def close(self):
+        os.close(self.newfd)
 
     def __enter__(self):
         os.dup2(self.newfd, self.fd)
