@@ -378,14 +378,15 @@ class PipeNode(DoubleNode):
 
     def execute(self, builtins):
         read, write = os.pipe()
-        pin = RedirectionHelper(0, read)
-        pout = RedirectionHelper(1, write)
+        inp = RedirectionHelper(0, read)
+        outp = RedirectionHelper(1, write)
 
-        with pout:
+        # TODO: close inp in child process
+        with outp:
             self.first.execute(builtins)
-        pout.close()
+        outp.close()
 
-        with pin:
+        with inp:
             self.second.execute(builtins)
 
     def wait(self):
