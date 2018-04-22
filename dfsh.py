@@ -342,9 +342,21 @@ class Node:
         pass
 
 class NullNode(Node):
+    '''
+    A node that does nothing.
+    '''
+
     pass
 
 class DoubleNode(Node):
+    '''
+    A node that executes two nodes sequentially.
+
+    Args:
+        first: The first node to execute.
+        second: The second node to execute.
+    '''
+
     def __init__(self, first, second):
         self.first = first
         self.second = second
@@ -357,6 +369,14 @@ class DoubleNode(Node):
         self.second.wait()
 
 class PipeNode(DoubleNode):
+    '''
+    A node that forwards the output of one node to the input of another.
+
+    Args:
+        first: The node to pipe the output from.
+        second: The node to pipe the input into.
+    '''
+
     def __init__(self, first, second):
         self.first = first
         self.second = second
