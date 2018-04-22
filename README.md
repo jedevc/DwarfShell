@@ -21,13 +21,21 @@ Using git clone:
 
 ## Running
 
-Running DwarfShell is just as easy as downloading it, just execute `dfsh.py`
-using python. Make sure you're using python3.
+Running DwarfShell is just as easy as downloading it, just execute `dfsh.py`.
+
+	./dfsh.py
+
+You can also manually invoke the python interpreter if you want.
 
 	python dfsh.py
 
 If you experience any issues, please report them
 [here](https://github.com/jedevc/DwarfShell/issues/new).
+
+## Installation
+
+If for some reason you want to install DwarfShell, then just copy `dfsh.py` to
+a directory in your path.
 
 ## License
 
