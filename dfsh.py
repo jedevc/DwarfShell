@@ -44,7 +44,10 @@ class Shell:
             A raw string read from stdin.
         '''
 
-        return input('$ ')
+        while True:
+            raw = input('$ ')
+            if len(raw) > 0:
+                return raw
 
     def execute(self, raw):
         '''
@@ -55,8 +58,9 @@ class Shell:
 
         parser = Parser(tokens)
         root = parser.parse()
-        root.execute(self.builtins)
-        root.wait()
+        if root:
+            root.execute(self.builtins)
+            root.wait()
 
     # various shell builtins
     def _builtin_exit(self, name, n=0):
