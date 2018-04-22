@@ -82,6 +82,7 @@ class TokenType(Enum):
     REDIRECT_APPEND = enum.auto()
     REDIRECT_IN = enum.auto()
     PIPE = enum.auto()
+    COMMAND_END = enum.auto()
     EOF = enum.auto()
     UNKNOWN = enum.auto()
 
@@ -164,6 +165,10 @@ class Tokenizer:
             token = Token(TokenType.PIPE, None, self.position)
             self.read()
             return token
+        elif self.char == ';':
+            token = Token(TokenType.COMMAND_END, None, self.position)
+            self.read()
+            return token
         elif self.char in '\'"':
             # quoted word
             end = self.char
@@ -233,7 +238,19 @@ class Parser:
             malformed.
         '''
 
-        return self.command()
+        root = self.commands()
+        self.expect(TokenType.EOF)
+
+        return root
+
+    def commands(self):
+        base = self.command()
+        if self.accept(TokenType.COMMAND_END):
+            other = self.commands()
+            if other:
+                return DoubleNode(base, other)
+
+        return base
 
     def command(self):
         if self.accept(TokenType.WORD):
@@ -248,10 +265,9 @@ class Parser:
             if self.accept(TokenType.PIPE):
                 return PipeNode(command, args, redirs, self.command())
             else:
-                self.expect(TokenType.EOF)
                 return CommandNode(command, args, redirs)
         else:
-            return None
+            return NullNode()
 
     def redirections(self):
         redirs = []
@@ -309,6 +325,18 @@ class Node:
         '''
 
         pass
+
+class NullNode(Node):
+    pass
+
+class DoubleNode(Node):
+    def __init__(self, first, second):
+        self.first = first
+        self.second = second
+
+    def execute(self, *args):
+        self.first.execute(*args)
+        self.second.execute(*args)
 
 class CommandNode(Node):
     '''
