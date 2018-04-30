@@ -251,7 +251,7 @@ class Parser:
         if self.accept(TokenType.COMMAND_END):
             other = self.commands()
             if base and other:
-                return DoubleNode(base, other)
+                return MultiNode(base, other)
             else:
                 return other
         else:
@@ -345,7 +345,7 @@ class Node:
 
         pass
 
-class DoubleNode(Node):
+class MultiNode(Node):
     '''
     A node that executes two nodes sequentially.
 
@@ -365,7 +365,7 @@ class DoubleNode(Node):
         self.second.execute(*args)
         self.second.wait()
 
-class PipeNode(DoubleNode):
+class PipeNode(MultiNode):
     '''
     A node that forwards the output of one node to the input of another.
 
