@@ -3,6 +3,8 @@
 import os
 import sys
 
+import readline
+
 import contextlib
 
 import enum
