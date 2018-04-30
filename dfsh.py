@@ -473,8 +473,14 @@ class RedirectionHelper:
         self.backup = os.dup(fd)
 
         try:
-            filename, mode = newfd
-            self.newfd = os.open(filename, mode)
+            if len(newfd) == 2:
+                filename, mode = newfd
+                self.newfd = os.open(filename, mode, 0o644)
+            elif len(newfd) == 3:
+                filename, mode, permissions = newfd
+                self.newfd = os.open(filename, mode, permissions)
+            else:
+                raise ValueError('invalid file open parameters')
         except TypeError:
             self.newfd = newfd
 
