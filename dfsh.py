@@ -12,8 +12,9 @@ from enum import Enum
 
 def main():
     sh = Shell()
-    sh.loop()
+    sh.run()
 
+# shell
 class Shell:
     '''
     The main shell class.
@@ -26,7 +27,7 @@ class Shell:
             'cd': self._builtin_cd
         }
 
-    def loop(self):
+    def run(self):
         '''
         Run the shell in a loop.
         '''
@@ -34,7 +35,7 @@ class Shell:
         while True:
             try:
                 line = self.readline()
-                self.run(line)
+                self.execute(line)
             except EOFError:
                 sys.exit(0)
 
@@ -51,9 +52,9 @@ class Shell:
             if len(raw) > 0:
                 return raw
 
-    def run(self, raw):
+    def execute(self, raw):
         '''
-        Run a command in the form of a raw string.
+        Execute a command in the form of a raw string.
         '''
 
         tokens = Tokenizer(raw)
@@ -61,7 +62,7 @@ class Shell:
         parser = Parser(tokens)
         root = parser.parse()
         if root:
-            root.run(self.builtins)
+            root.execute(self.builtins, Hooks())
             root.wait()
 
     # various shell builtins
@@ -75,6 +76,7 @@ class Shell:
     def _builtin_cd(self, name, d):
         os.chdir(d)
 
+# lexical analysis
 class TokenType(Enum):
     '''
     Token types that are recognized by the Tokenizer.
@@ -214,6 +216,7 @@ class Tokenizer:
 
             if token.ttype == TokenType.EOF: break
 
+# syntax analysis
 class Parser:
     '''
     Parses a stream of tokens into an Abstract Syntax Tree for later execution.
@@ -244,7 +247,7 @@ class Parser:
         root = self.commands()
         self.expect(TokenType.EOF)
 
-        return RootNode(root)
+        return root
 
     def commands(self):
         base = self.command()
@@ -286,7 +289,7 @@ class Parser:
             redir = self.redirection()
 
         if len(redirs) > 0:
-            return RedirectionsHelper(redirs)
+            return Redirections(redirs)
         else:
             return None
 
@@ -294,13 +297,13 @@ class Parser:
         # TODO: recognize other types of redirections
         if self.accept(TokenType.REDIRECT_OUT):
             filename = self.expect(TokenType.WORD).lexeme
-            return RedirectionHelper(1, (filename, os.O_CREAT | os.O_WRONLY | os.O_TRUNC))
+            return Redirection(1, (filename, os.O_CREAT | os.O_WRONLY | os.O_TRUNC))
         elif self.accept(TokenType.REDIRECT_APPEND):
             filename = self.expect(TokenType.WORD).lexeme
-            return RedirectionHelper(1, (filename, os.O_CREAT | os.O_WRONLY | os.O_APPEND))
+            return Redirection(1, (filename, os.O_CREAT | os.O_WRONLY | os.O_APPEND))
         elif self.accept(TokenType.REDIRECT_IN):
             filename = self.expect(TokenType.WORD).lexeme
-            return RedirectionHelper(0, (filename, os.O_RDONLY))
+            return Redirection(0, (filename, os.O_RDONLY))
         else:
             return None
 
@@ -323,38 +326,7 @@ class Parser:
         else:
             raise ValueError(f'expected token to be {ttype}, instead got {self.token.ttype}')
 
-class Hooks:
-    '''
-    Tracker of various hooks to be run during execution.
-
-    Args:
-        base: A hook to copy existing hooks from.
-        execute: Hooks to be run upon command execution.
-        fork: Hooks to be run upon a process fork.
-    '''
-
-    def __init__(self, base=None, execute=None, fork=None):
-        if base:
-            self._execute = base._execute + Hooks._listify(execute)
-            self._fork = base._fork + Hooks._listify(fork)
-        else:
-            self._execute = Hooks._listify(execute)
-            self._fork = Hooks._listify(fork)
-
-    def execute(self, command, args):
-        for hook in self._execute: hook(command, args)
-
-    def fork(self):
-        for hook in self._fork: hook()
-
-    def _listify(value):
-        if value is None:
-            return []
-        try:
-            return list(value)
-        except TypeError:
-            return [value]
-
+# abstract syntax tree
 class Node:
     '''
     A single node in the Abstract Syntax Tree.
@@ -377,73 +349,6 @@ class Node:
         '''
 
         pass
-
-class RootNode(Node):
-    '''
-    A node that contains one other node and is the root of the AST.
-    '''
-
-    def __init__(self, base):
-        self.base = base
-
-    def run(self, builtins={}, hooks=Hooks()):
-        self.execute(builtins, hooks)
-
-    def execute(self, builtins, hooks):
-        self.base.execute(builtins, hooks)
-
-    def wait(self):
-        self.base.wait()
-
-class MultiNode(Node):
-    '''
-    A node that executes two nodes sequentially.
-
-    Args:
-        first: The first node to execute.
-        second: The second node to execute.
-    '''
-
-    def __init__(self, first, second):
-        self.first = first
-        self.second = second
-
-    def execute(self, builtins, hooks):
-        self.first.execute(builtins, hooks)
-        self.first.wait()
-
-        self.second.execute(builtins, hooks)
-        self.second.wait()
-
-class PipeNode(MultiNode):
-    '''
-    A node that forwards the output of one node to the input of another.
-
-    Args:
-        first: The node to pipe the output from.
-        second: The node to pipe the input into.
-    '''
-
-    def __init__(self, first, second):
-        self.first = first
-        self.second = second
-
-    def execute(self, builtins, hooks):
-        read, write = os.pipe()
-        inp = RedirectionHelper(0, read)
-        outp = RedirectionHelper(1, write)
-
-        with outp:
-            self.first.execute(builtins, Hooks(hooks, fork=lambda: inp.close()))
-
-        outp.close()
-
-        with inp:
-            self.second.execute(builtins, hooks)
-
-    def wait(self):
-        self.first.wait()
-        self.second.wait()
 
 class CommandNode(Node):
     '''
@@ -494,6 +399,56 @@ class CommandNode(Node):
 
         raise FileNotFoundError('command not found')
 
+class MultiNode(Node):
+    '''
+    A node that executes two nodes sequentially.
+
+    Args:
+        first: The first node to execute.
+        second: The second node to execute.
+    '''
+
+    def __init__(self, first, second):
+        self.first = first
+        self.second = second
+
+    def execute(self, builtins, hooks):
+        self.first.execute(builtins, hooks)
+        self.first.wait()
+
+        self.second.execute(builtins, hooks)
+        self.second.wait()
+
+class PipeNode(Node):
+    '''
+    A node that forwards the output of one node to the input of another.
+
+    Args:
+        first: The node to pipe the output from.
+        second: The node to pipe the input into.
+    '''
+
+    def __init__(self, first, second):
+        self.first = first
+        self.second = second
+
+    def execute(self, builtins, hooks):
+        read, write = os.pipe()
+        inp = Redirection(0, read)
+        outp = Redirection(1, write)
+
+        with outp:
+            self.first.execute(builtins, Hooks(hooks, fork=lambda: inp.close()))
+
+        outp.close()
+
+        with inp:
+            self.second.execute(builtins, hooks)
+
+    def wait(self):
+        self.first.wait()
+        self.second.wait()
+
 class RedirectionsNode(Node):
     '''
     A node that performs a number of IO redirections.
@@ -514,7 +469,40 @@ class RedirectionsNode(Node):
     def wait(self):
         self.base.wait()
 
-class RedirectionHelper:
+# helpers
+class Hooks:
+    '''
+    Tracker of various hooks to be run during execution.
+
+    Args:
+        base: A hook to copy existing hooks from.
+        execute: Hooks to be run upon command execution.
+        fork: Hooks to be run upon a process fork.
+    '''
+
+    def __init__(self, base=None, execute=None, fork=None):
+        if base:
+            self._execute = base._execute + Hooks._listify(execute)
+            self._fork = base._fork + Hooks._listify(fork)
+        else:
+            self._execute = Hooks._listify(execute)
+            self._fork = Hooks._listify(fork)
+
+    def execute(self, command, args):
+        for hook in self._execute: hook(command, args)
+
+    def fork(self):
+        for hook in self._fork: hook()
+
+    def _listify(value):
+        if value is None:
+            return []
+        try:
+            return list(value)
+        except TypeError:
+            return [value]
+
+class Redirection:
     '''
     Helps perform a single file redirection.
 
@@ -548,7 +536,7 @@ class RedirectionHelper:
     def __exit__(self, type, value, traceback):
         os.dup2(self.backup, self.fd)
 
-class RedirectionsHelper:
+class Redirections:
     '''
     Helps perform multiple file redirections.
 
