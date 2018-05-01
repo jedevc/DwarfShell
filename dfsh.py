@@ -12,7 +12,7 @@ from enum import Enum
 
 def main():
     sh = Shell()
-    sh.run()
+    sh.loop()
 
 class Shell:
     '''
@@ -26,15 +26,15 @@ class Shell:
             'cd': self._builtin_cd
         }
 
-    def run(self):
+    def loop(self):
         '''
-        Run the shell.
+        Run the shell in a loop.
         '''
 
         while True:
             try:
                 line = self.readline()
-                self.execute(line)
+                self.run(line)
             except EOFError:
                 sys.exit(0)
 
@@ -51,9 +51,9 @@ class Shell:
             if len(raw) > 0:
                 return raw
 
-    def execute(self, raw):
+    def run(self, raw):
         '''
-        Execute a command in the form of a raw string.
+        Run a command in the form of a raw string.
         '''
 
         tokens = Tokenizer(raw)
@@ -61,7 +61,7 @@ class Shell:
         parser = Parser(tokens)
         root = parser.parse()
         if root:
-            root.execute(self.builtins)
+            root.run(self.builtins)
             root.wait()
 
     # various shell builtins
@@ -244,7 +244,7 @@ class Parser:
         root = self.commands()
         self.expect(TokenType.EOF)
 
-        return root
+        return RootNode(root)
 
     def commands(self):
         base = self.command()
@@ -323,17 +323,50 @@ class Parser:
         else:
             raise ValueError(f'expected token to be {ttype}, instead got {self.token.ttype}')
 
+class Hooks:
+    '''
+    Tracker of various hooks to be run during execution.
+
+    Args:
+        base: A hook to copy existing hooks from.
+        execute: Hooks to be run upon command execution.
+        fork: Hooks to be run upon a process fork.
+    '''
+
+    def __init__(self, base=None, execute=None, fork=None):
+        if base:
+            self._execute = base._execute + Hooks._listify(execute)
+            self._fork = base._fork + Hooks._listify(fork)
+        else:
+            self._execute = Hooks._listify(execute)
+            self._fork = Hooks._listify(fork)
+
+    def execute(self, command, args):
+        for hook in self._execute: hook(command, args)
+
+    def fork(self):
+        for hook in self._fork: hook()
+
+    def _listify(value):
+        if value is None:
+            return []
+        try:
+            return list(value)
+        except TypeError:
+            return [value]
+
 class Node:
     '''
     A single node in the Abstract Syntax Tree.
     '''
 
-    def execute(self, builtins):
+    def execute(self, builtins, hooks):
         '''
         Execute the node.
 
         Args:
             builtins: A dict of builtin commands.
+            hooks: A collection of hooks that can be called during execution.
         '''
 
         pass
@@ -344,6 +377,23 @@ class Node:
         '''
 
         pass
+
+class RootNode(Node):
+    '''
+    A node that contains one other node and is the root of the AST.
+    '''
+
+    def __init__(self, base):
+        self.base = base
+
+    def run(self, builtins={}, hooks=Hooks()):
+        self.execute(builtins, hooks)
+
+    def execute(self, builtins, hooks):
+        self.base.execute(builtins, hooks)
+
+    def wait(self):
+        self.base.wait()
 
 class MultiNode(Node):
     '''
@@ -358,11 +408,11 @@ class MultiNode(Node):
         self.first = first
         self.second = second
 
-    def execute(self, *args):
-        self.first.execute(*args)
+    def execute(self, builtins, hooks):
+        self.first.execute(builtins, hooks)
         self.first.wait()
 
-        self.second.execute(*args)
+        self.second.execute(builtins, hooks)
         self.second.wait()
 
 class PipeNode(MultiNode):
@@ -378,18 +428,18 @@ class PipeNode(MultiNode):
         self.first = first
         self.second = second
 
-    def execute(self, builtins):
+    def execute(self, builtins, hooks):
         read, write = os.pipe()
         inp = RedirectionHelper(0, read)
         outp = RedirectionHelper(1, write)
 
-        # TODO: close inp in child process
         with outp:
-            self.first.execute(builtins)
+            self.first.execute(builtins, Hooks(hooks, fork=lambda: inp.close()))
+
         outp.close()
 
         with inp:
-            self.second.execute(builtins)
+            self.second.execute(builtins, hooks)
 
     def wait(self):
         self.first.wait()
@@ -412,13 +462,16 @@ class CommandNode(Node):
 
         self.pid = None
 
-    def execute(self, builtins):
+    def execute(self, builtins, hooks):
         if self.command in builtins:
+            hooks.execute(self.command, self.args)
             builtins[self.command](*self.args)
         else:
             pid = os.fork()
             if pid == 0:
                 # child process
+                hooks.execute(self.command, self.args)
+                hooks.fork()
                 os.execv(self.full_command, self.args)
             else:
                 # parent process
@@ -454,9 +507,9 @@ class RedirectionsNode(Node):
         self.base = base
         self.redirections = redirections
 
-    def execute(self, builtins):
+    def execute(self, builtins, hooks):
         with self.redirections:
-            self.base.execute(builtins)
+            self.base.execute(builtins, hooks)
 
     def wait(self):
         self.base.wait()
