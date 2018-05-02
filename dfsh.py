@@ -62,8 +62,18 @@ class Shell:
         parser = Parser(tokens)
         root = parser.parse()
         if root:
-            root.execute(self.builtins, Hooks())
-            root.wait()
+            try:
+                root.execute(self.builtins, Hooks())
+            except CommandNotFoundError as e:
+                print(f'dfsh: command not found: {e.command}')
+            except FileNotFoundError as e:
+                print(f'dfsh: no such file or directory: {e.filename}')
+            except IsADirectoryError as e:
+                print(f'dfsh: is a directory: {e.filename}')
+            except PermissionError as e:
+                print(f'dfsh: permission denied: {e.filename}')
+            finally:
+                root.wait()
 
     # various shell builtins
     def _builtin_exit(self, name, n=0):
@@ -350,6 +360,10 @@ class Node:
 
         pass
 
+class CommandNotFoundError(Exception):
+    def __init__(self, command):
+        self.command = command
+
 class CommandNode(Node):
     '''
     A node that contains a single shell command.
@@ -372,12 +386,14 @@ class CommandNode(Node):
             hooks.execute(self.command, self.args)
             builtins[self.command](*self.args)
         else:
+            cmd = self.full_command()
+
             pid = os.fork()
             if pid == 0:
                 # child process
-                hooks.execute(self.command, self.args)
+                hooks.execute(cmd, self.args)
                 hooks.fork()
-                os.execv(self.full_command, self.args)
+                os.execv(cmd, self.args)
             else:
                 # parent process
                 self.pid = pid
@@ -386,7 +402,6 @@ class CommandNode(Node):
         if self.pid:
             os.waitpid(self.pid, 0)
 
-    @property
     def full_command(self):
         if os.path.exists(self.command):
             return self.command
@@ -397,7 +412,7 @@ class CommandNode(Node):
             if os.path.exists(cmd):
                 return cmd
 
-        raise FileNotFoundError('command not found')
+        raise CommandNotFoundError(self.command)
 
 class MultiNode(Node):
     '''
@@ -511,26 +526,31 @@ class Redirection:
         newfd: The new file descriptor.
     '''
 
-    def __init__(self, fd, newfd):
+    def __init__(self, fd, params):
         self.fd = fd
         self.backup = os.dup(fd)
 
+        self.newfd = None
         try:
-            if len(newfd) == 2:
-                filename, mode = newfd
-                self.newfd = os.open(filename, mode, 0o644)
-            elif len(newfd) == 3:
-                filename, mode, permissions = newfd
-                self.newfd = os.open(filename, mode, permissions)
+            if len(params) == 2:
+                self.filename, self.mode = params
+                self.permissions = 0o644
+            elif len(params) == 3:
+                self.filename, self.mode, self.permissions = params
             else:
                 raise ValueError('invalid file open parameters')
         except TypeError:
-            self.newfd = newfd
+            self.newfd = params
+
+    def open(self):
+        self.newfd = os.open(self.filename, self.mode, self.permissions)
 
     def close(self):
         os.close(self.newfd)
 
     def __enter__(self):
+        if self.newfd is None:
+            self.open()
         os.dup2(self.newfd, self.fd)
 
     def __exit__(self, type, value, traceback):
