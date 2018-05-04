@@ -12,7 +12,7 @@ upstream changes.
 
 Using wget:
 
-	wget https://raw.githubusercontent.com/jedevc/DwarfShell/master/dfsh.py
+	wget https://raw.githubusercontent.com/jedevc/DwarfShell/master/dwsh.py
 
 Using git clone:
 
@@ -21,20 +21,20 @@ Using git clone:
 
 ## Running
 
-Running DwarfShell is just as easy as downloading it, just execute `dfsh.py`.
+Running DwarfShell is just as easy as downloading it, just execute `dwsh.py`.
 
-	./dfsh.py
+	./dwsh.py
 
 You can also manually invoke the python interpreter if you want.
 
-	python dfsh.py
+	python dwsh.py
 
 If you experience any issues, please report them
 [here](https://github.com/jedevc/DwarfShell/issues/new).
 
 ## Installation
 
-If for some reason you want to install DwarfShell, then just copy `dfsh.py` to
+If for some reason you want to install DwarfShell, then just copy `dwsh.py` to
 a directory in your path.
 
 ## License

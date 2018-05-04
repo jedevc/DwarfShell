@@ -65,13 +65,13 @@ class Shell:
             try:
                 root.execute(self.builtins, Hooks())
             except CommandNotFoundError as e:
-                print(f'dfsh: command not found: {e.command}')
+                print(f'dwsh: command not found: {e.command}')
             except FileNotFoundError as e:
-                print(f'dfsh: no such file or directory: {e.filename}')
+                print(f'dwsh: no such file or directory: {e.filename}')
             except IsADirectoryError as e:
-                print(f'dfsh: is a directory: {e.filename}')
+                print(f'dwsh: is a directory: {e.filename}')
             except PermissionError as e:
-                print(f'dfsh: permission denied: {e.filename}')
+                print(f'dwsh: permission denied: {e.filename}')
             finally:
                 root.wait()
 
