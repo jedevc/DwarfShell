@@ -233,8 +233,6 @@ class Tokenizer:
             if token.ttype == TokenType.EOF: break
 
 # syntax analysis
-class ParseError(ValueError): pass
-
 class Parser:
     '''
     Parses a stream of tokens into an Abstract Syntax Tree for later execution.
@@ -374,10 +372,6 @@ class Node:
         '''
 
         pass
-
-class CommandNotFoundError(Exception):
-    def __init__(self, command):
-        self.command = command
 
 class CommandNode(Node):
     '''
@@ -594,6 +588,14 @@ class Redirections:
         if self.stack:
             self.stack.close()
             self.stack = None
+
+# custom exceptions
+class ParseError(ValueError):
+    pass
+
+class CommandNotFoundError(Exception):
+    def __init__(self, command):
+        self.command = command
 
 if __name__ == "__main__":
     main()
