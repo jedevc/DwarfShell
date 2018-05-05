@@ -57,10 +57,16 @@ class Shell:
         Execute a command in the form of a raw string.
         '''
 
+        # parse command
         tokens = Tokenizer(raw)
-
         parser = Parser(tokens)
-        root = parser.parse()
+        try:
+            root = parser.parse()
+        except ParseError as e:
+            print(f'dwsh: parse error: {str(e)}')
+            return
+
+        # execute command
         if root:
             try:
                 root.execute(self.builtins, Hooks())
@@ -227,6 +233,8 @@ class Tokenizer:
             if token.ttype == TokenType.EOF: break
 
 # syntax analysis
+class ParseError(ValueError): pass
+
 class Parser:
     '''
     Parses a stream of tokens into an Abstract Syntax Tree for later execution.
@@ -250,7 +258,7 @@ class Parser:
             The root node of the Abstract Syntax Tree.
 
         Throws:
-            May throw a ValueError in the case that the stream of tokens is
+            May throw a ParseError in the case that the stream of tokens is
             malformed.
         '''
 
@@ -289,7 +297,10 @@ class Parser:
                 node = RedirectionsNode(node, redirs)
 
             if self.accept(TokenType.PIPE):
-                return PipeNode(node, self.command())
+                other = self.command()
+                if other is None:
+                    raise ParseError('expected command')
+                return PipeNode(node, other)
             else:
                 return node
         else:
@@ -338,7 +349,7 @@ class Parser:
         if result:
             return result
         else:
-            raise ValueError(f'expected token to be {ttype}, instead got {self.token.ttype}')
+            raise ParseError(f'expected token {ttype}')
 
 # abstract syntax tree
 class Node:
