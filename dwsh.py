@@ -63,7 +63,7 @@ class Shell:
         try:
             root = parser.parse()
         except ParseError as e:
-            print(f'dwsh: parse error: {str(e)}')
+            self.error('parse error', str(e))
             return
 
         # execute command
@@ -71,15 +71,18 @@ class Shell:
             try:
                 root.execute(self.builtins, Hooks())
             except CommandNotFoundError as e:
-                print(f'dwsh: command not found: {e.command}')
+                self.error('command not found', e.command)
             except FileNotFoundError as e:
-                print(f'dwsh: no such file or directory: {e.filename}')
+                self.error('no such file or directory', e.filename)
             except IsADirectoryError as e:
-                print(f'dwsh: is a directory: {e.filename}')
+                self.error('is a directory', e.filename)
             except PermissionError as e:
-                print(f'dwsh: permission denied: {e.filename}')
+                self.error('permission denied', e.filename)
             finally:
                 root.wait()
+
+    def error(self, summary, details):
+        print(f'dwsh: {summary}: {details}', file=sys.stderr)
 
     # various shell builtins
     def _builtin_exit(self, name, n=0):
