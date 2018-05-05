@@ -265,8 +265,12 @@ class Parser:
             other = self.commands()
             if base and other:
                 return MultiNode(base, other)
-            else:
+            elif base:
+                return base
+            elif other:
                 return other
+            else:
+                return None
         else:
             return base
 
