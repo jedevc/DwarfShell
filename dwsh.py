@@ -412,7 +412,7 @@ class CommandNode(Node):
             os.waitpid(self.pid, 0)
 
     def full_command(self):
-        if os.path.exists(self.command):
+        if self.command.startswith(('/', './'))  and os.path.exists(self.command):
             return self.command
 
         path = os.environ['PATH'].split(':')
