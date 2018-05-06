@@ -4,13 +4,10 @@ import os
 import sys
 
 import re
-
-import readline
-
+import enum
 import contextlib
 
-import enum
-from enum import Enum
+import readline
 
 def main():
     sh = Shell()
@@ -98,7 +95,7 @@ class Shell:
         os.chdir(d)
 
 # lexical analysis
-class TokenType(Enum):
+class TokenType(enum.Enum):
     '''
     Token types that are recognized by the Tokenizer.
     '''
