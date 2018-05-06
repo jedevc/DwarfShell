@@ -3,6 +3,8 @@
 import os
 import sys
 
+import re
+
 import readline
 
 import contextlib
@@ -133,6 +135,8 @@ class Tokenizer:
         string: The raw string on which to operate.
     '''
 
+    WORD_CHARS = re.compile('[^><|;]')
+
     def __init__(self, string):
         self.string = string
         self.position = -1
@@ -213,11 +217,11 @@ class Tokenizer:
                 self.read()
 
             return Token(TokenType.WORD, ''.join(value), start)
-        elif self.char.isprintable():
+        elif Tokenizer.WORD_CHARS.match(self.char):
             # single word
             start = self.position
             value = []
-            while self.char and self.char.isprintable() and not self.char.isspace():
+            while self.char and Tokenizer.WORD_CHARS.match(self.char) and not self.char.isspace():
                 value.append(self.char)
                 self.read()
 
