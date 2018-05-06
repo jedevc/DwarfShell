@@ -274,15 +274,15 @@ class Parser:
             malformed.
         '''
 
-        root = self.commands()
+        root = self.lines()
         self.expect(TokenType.EOF)
 
         return root
 
-    def commands(self):
-        base = self.command()
+    def lines(self):
+        base = self.line()
         if self.accept(TokenType.COMMAND_END):
-            other = self.commands()
+            other = self.lines()
             if base and other:
                 return MultiNode(base, other)
             elif base:
@@ -294,6 +294,21 @@ class Parser:
         else:
             return base
 
+    def line(self):
+        base = self.command()
+        if base:
+            redirs = self.redirections()
+            if redirs:
+                base = RedirectionsNode(base, redirs)
+
+            if self.accept(TokenType.PIPE):
+                other = self.line()
+                if other is None:
+                    raise ParseError('expected command')
+                return PipeNode(base, other)
+
+        return base
+
     def command(self):
         if self.accept(TokenType.WORD):
             command = self.last.lexeme
@@ -302,21 +317,7 @@ class Parser:
             while self.accept(TokenType.WORD):
                 args.append(self.last.lexeme)
 
-            node = CommandNode(command, args)
-
-            redirs = self.redirections()
-            if redirs:
-                node = RedirectionsNode(node, redirs)
-
-            if self.accept(TokenType.PIPE):
-                other = self.command()
-                if other is None:
-                    raise ParseError('expected command')
-                return PipeNode(node, other)
-            else:
-                return node
-        else:
-            return None
+            return CommandNode(command, args)
 
     def redirections(self):
         redirs = []
@@ -327,8 +328,6 @@ class Parser:
 
         if len(redirs) > 0:
             return Redirections(redirs)
-        else:
-            return None
 
     def redirection(self):
         # TODO: recognize other types of redirections
@@ -341,8 +340,6 @@ class Parser:
         elif self.accept(TokenType.REDIRECT_IN):
             filename = self.expect(TokenType.WORD).lexeme
             return Redirection(0, (filename, os.O_RDONLY))
-        else:
-            return None
 
     def next(self):
         self.last = self.token
@@ -353,8 +350,6 @@ class Parser:
         if self.token and self.token.ttype == ttype:
             self.next()
             return self.last
-        else:
-            return None
 
     def expect(self, ttype):
         result = self.accept(ttype)
