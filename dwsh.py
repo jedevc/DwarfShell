@@ -175,6 +175,7 @@ class Tokenizer:
             # end-of-file
             return Token(TokenType.EOF, None, self.position)
         elif self.char == '>':
+            # output redirection
             start = self.position
             if self.read() == '>':
                 self.read()
@@ -182,14 +183,17 @@ class Tokenizer:
             else:
                 return Token(TokenType.REDIRECT_OUT, None, start)
         elif self.char == '<':
+            # input redirection
             token = Token(TokenType.REDIRECT_IN, None, self.position)
             self.read()
             return token
         elif self.char == '|':
+            # pipe
             token = Token(TokenType.PIPE, None, self.position)
             self.read()
             return token
         elif self.char == ';':
+            # command seperator
             token = Token(TokenType.COMMAND_END, None, self.position)
             self.read()
             return token
