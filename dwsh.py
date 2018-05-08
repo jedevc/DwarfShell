@@ -74,7 +74,7 @@ class Shell:
         # execute command
         if root:
             try:
-                root.execute(self.builtins, Hooks())
+                root.execute(self.builtins, os.environ, Hooks())
             except CommandNotFoundError as e:
                 self.error('command not found', e.command)
             except FileNotFoundError as e:
@@ -364,12 +364,13 @@ class Node:
     A single node in the Abstract Syntax Tree.
     '''
 
-    def execute(self, builtins, hooks):
+    def execute(self, builtins, variables, hooks):
         '''
         Execute the node.
 
         Args:
             builtins: A dict of builtin commands.
+            variables: A dict of variables.
             hooks: A collection of hooks that can be called during execution.
         '''
 
@@ -399,19 +400,23 @@ class CommandNode(Node):
 
         self.pid = None
 
-    def execute(self, builtins, hooks):
+    def execute(self, builtins, variables, hooks):
         if self.command in builtins:
-            hooks.execute(self.command, self.args)
-            builtins[self.command](*self.args)
+            command = self.expansions(self.command, variables)
+            args = self.full_args(variables)
+
+            hooks.execute(command, args)
+            builtins[command](*args)
         else:
-            cmd = self.full_command()
+            command = self.full_command(variables)
+            args = self.full_args(variables)
 
             pid = os.fork()
             if pid == 0:
                 # child process
-                hooks.execute(cmd, self.args)
+                hooks.execute(command, args)
                 hooks.fork()
-                os.execv(cmd, self.args)
+                os.execv(command, args)
             else:
                 # parent process
                 self.pid = pid
@@ -420,17 +425,59 @@ class CommandNode(Node):
         if self.pid:
             os.waitpid(self.pid, 0)
 
-    def full_command(self):
-        if self.command.startswith(('/', './'))  and os.path.exists(self.command):
-            return self.command
+    def full_command(self, variables):
+        command = self.expansions(self.command, variables)
+
+        if command.startswith(('/', './'))  and os.path.exists(command):
+            return command
 
         path = os.environ['PATH'].split(':')
         for di in path:
-            cmd = os.path.join(di, self.command)
+            cmd = os.path.join(di, command)
             if os.path.exists(cmd):
                 return cmd
 
-        raise CommandNotFoundError(self.command)
+        raise CommandNotFoundError(command)
+
+    def full_args(self, variables):
+        return [self.expansions(arg, variables) for arg in self.args]
+
+    def expansions(self, raw, variables):
+        result = []
+
+        i = 0
+        while i < len(raw):
+            if raw[i] == '$':
+                # variable expansion
+                name = []
+
+                i += 1
+                if raw[i] == '{':
+                    i += 1
+                    while True:
+                        if i >= len(raw):
+                            raise ValueError('expected end brace')
+                        elif raw[i] == '}':
+                            i += 1
+                            break
+                        else:
+                            name.append(raw[i])
+                            i += 1
+                else:
+                    while i < len(raw) and (raw[i].isalpha() or raw[i] == '_'):
+                        name.append(raw[i])
+                        i += 1
+
+                name = ''.join(name)
+                value = str(variables[name])
+
+                result.append(value)
+            else:
+                # standard character
+                result.append(raw[i])
+                i += 1
+
+        return ''.join(result)
 
 class MultiNode(Node):
     '''
@@ -445,11 +492,11 @@ class MultiNode(Node):
         self.first = first
         self.second = second
 
-    def execute(self, builtins, hooks):
-        self.first.execute(builtins, hooks)
+    def execute(self, builtins, variables, hooks):
+        self.first.execute(builtins, variables, hooks)
         self.first.wait()
 
-        self.second.execute(builtins, hooks)
+        self.second.execute(builtins, variables, hooks)
         self.second.wait()
 
 class PipeNode(Node):
@@ -465,18 +512,18 @@ class PipeNode(Node):
         self.first = first
         self.second = second
 
-    def execute(self, builtins, hooks):
+    def execute(self, builtins, variables, hooks):
         read, write = os.pipe()
         inp = Redirection(0, read)
         outp = Redirection(1, write)
 
         with outp:
-            self.first.execute(builtins, Hooks(hooks, fork=lambda: inp.close()))
+            self.first.execute(builtins, variables, Hooks(hooks, fork=lambda: inp.close()))
 
         outp.close()
 
         with inp:
-            self.second.execute(builtins, hooks)
+            self.second.execute(builtins, variables, hooks)
 
     def wait(self):
         self.first.wait()
@@ -495,9 +542,9 @@ class RedirectionsNode(Node):
         self.base = base
         self.redirections = redirections
 
-    def execute(self, builtins, hooks):
+    def execute(self, builtins, variables, hooks):
         with self.redirections:
-            self.base.execute(builtins, hooks)
+            self.base.execute(builtins, variables, hooks)
 
     def wait(self):
         self.base.wait()
