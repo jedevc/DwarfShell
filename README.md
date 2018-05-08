@@ -1,7 +1,17 @@
 # DwarfShell
 
-DwarfShell is a simple, one-file, no-dependency shell that runs on any linux
+DwarfShell is a simple one-file, no-dependency shell that runs on any linux
 system with python.
+
+This was mainly built as a pet project to try and understand the linux
+ecosystem a little better and to take the mystery out of commonly used tools.
+Hopefully, the program is well commented enough to be able to easily pull apart
+and understand how it works.
+
+It is *not* meant to be feature complete, so it probably is not a good
+replacement for an everyday shell. However, it does support several more
+complex features, such as input/ouput redirection, piping and a few types of
+expansions.
 
 ## Downloading
 
@@ -34,8 +44,8 @@ If you experience any issues, please report them
 
 ## Installation
 
-If for some reason you want to install DwarfShell, then just copy `dwsh.py` to
-a directory in your path.
+If for some reason you actually want to install DwarfShell, then just copy
+`dwsh.py` to a directory in your path.
 
 ## License
 
