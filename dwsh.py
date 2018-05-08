@@ -401,15 +401,14 @@ class CommandNode(Node):
         self.pid = None
 
     def execute(self, builtins, variables, hooks):
-        if self.command in builtins:
-            command = self.expansions(self.command, variables)
-            args = self.full_args(variables)
+        command = self.expansions(self.command, variables)
+        args = [self.expansions(arg, variables) for arg in self.args]
 
+        if command in builtins:
             hooks.execute(command, args)
             builtins[command](*args)
         else:
-            command = self.full_command(variables)
-            args = self.full_args(variables)
+            command = self.lookup(command, variables['PATH'].split(':'))
 
             pid = os.fork()
             if pid == 0:
@@ -425,22 +424,16 @@ class CommandNode(Node):
         if self.pid:
             os.waitpid(self.pid, 0)
 
-    def full_command(self, variables):
-        command = self.expansions(self.command, variables)
+    def lookup(self, filename, path):
+        if filename.startswith(('/', './'))  and os.path.exists(filename):
+            return filename
 
-        if command.startswith(('/', './'))  and os.path.exists(command):
-            return command
-
-        path = os.environ['PATH'].split(':')
         for di in path:
-            cmd = os.path.join(di, command)
-            if os.path.exists(cmd):
-                return cmd
+            possible = os.path.join(di, filename)
+            if os.path.exists(possible):
+                return possible
 
-        raise CommandNotFoundError(command)
-
-    def full_args(self, variables):
-        return [self.expansions(arg, variables) for arg in self.args]
+        raise CommandNotFoundError(filename)
 
     def expansions(self, raw, variables):
         result = []
