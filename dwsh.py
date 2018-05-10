@@ -61,6 +61,9 @@ class Shell:
     def execute(self, raw):
         '''
         Execute a command in the form of a raw string.
+
+        Args:
+            raw: The raw string to parse and execute.
         '''
 
         # parse command
@@ -88,6 +91,14 @@ class Shell:
                 root.wait()
 
     def error(self, summary, details):
+        '''
+        Print an error to the console.
+
+        Args:
+            summary: A summary of what happened.
+            details: The subject of the error.
+        '''
+
         print(f'dwsh: {summary}: {details}', file=sys.stderr)
 
     # various shell builtins
@@ -104,7 +115,7 @@ class Shell:
 # lexical analysis
 class TokenType(enum.Enum):
     '''
-    Token types that are recognized by the Tokenizer.
+    Token types that can be recognized by the Tokenizer.
     '''
 
     WORD = enum.auto()
@@ -118,12 +129,12 @@ class TokenType(enum.Enum):
 
 class Token:
     '''
-    A string with an assigned meaning.
+    A string with an assigned meaning used during lexical analysis.
 
     Args:
         ttype: The token meaning.
         lexeme: The token value (optional).
-        position: The location of the token in the stream.
+        position: The location of the token in the stream (optional).
     '''
 
     def __init__(self, ttype, lexeme=None, position=None):
@@ -139,8 +150,6 @@ class Tokenizer:
         string: The raw string on which to operate.
     '''
 
-    WORD_CHARS = re.compile('[^><|;]')
-
     def __init__(self, string):
         self.string = string
         self.position = -1
@@ -148,20 +157,8 @@ class Tokenizer:
 
         self.read()
 
-    def read(self):
-        '''
-        Read a single char from the stream and store it in self.char.
-
-        Returns:
-            The value of self.char.
-        '''
-
-        self.position += 1
-        if self.position < len(self.string):
-            self.char = self.string[self.position]
-        else:
-            self.char = None
-        return self.char
+    # regular expression for matching word characters
+    WORD_CHARS = re.compile('[^><|;]')
 
     def token(self):
         '''
@@ -246,6 +243,21 @@ class Tokenizer:
             yield token
 
             if token.ttype == TokenType.EOF: break
+
+    def read(self):
+        '''
+        Read a single char from the stream and store it in self.char.
+
+        Returns:
+            The value of self.char.
+        '''
+
+        self.position += 1
+        if self.position < len(self.string):
+            self.char = self.string[self.position]
+        else:
+            self.char = None
+        return self.char
 
 # syntax analysis
 class Parser:
@@ -387,7 +399,8 @@ class CommandNode(Node):
     A node that contains a single shell command.
 
     Args:
-        args: The arguments to be passed to the executable.
+        args: The arguments to be passed to the executable. The first argument
+            should be the name of the executable.
     '''
 
     def __init__(self, args):
@@ -426,6 +439,17 @@ class CommandNode(Node):
             os.waitpid(self.pid, 0)
 
     def lookup(self, filename, path):
+        '''
+        Find the filename in the provided path.
+
+        Args:
+            filename: The filename to search for.
+            path: A list of places to search.
+
+        Returns:
+            The full path if found, None if not.
+        '''
+
         if filename.startswith(('/', './'))  and os.path.exists(filename):
             return filename
 
@@ -437,6 +461,17 @@ class CommandNode(Node):
         raise CommandNotFoundError(filename)
 
     def expandvars(self, raw, variables):
+        '''
+        Expand variables.
+
+        Args:
+            raw: The raw string to expand.
+            variables: A dictionary containing variables to replace.
+
+        Returns:
+            The expanded string.
+        '''
+
         result = []
 
         i = 0
@@ -474,6 +509,16 @@ class CommandNode(Node):
         return ''.join(result)
 
     def glob(self, raw):
+        '''
+        Calculate the globbed filenames.
+
+        Args:
+            raw: The raw string to expand.
+
+        Returns:
+            The expanded string.
+        '''
+
         if '*' in raw:
             return glob.glob(raw, recursive=True)
         else:
