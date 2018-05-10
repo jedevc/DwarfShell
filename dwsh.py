@@ -11,6 +11,7 @@ import sys
 
 import re
 import enum
+import glob
 import contextlib
 
 import readline
@@ -401,8 +402,13 @@ class CommandNode(Node):
         self.pid = None
 
     def execute(self, builtins, variables, hooks):
-        command = self.expansions(self.command, variables)
-        args = [self.expansions(arg, variables) for arg in self.args]
+        command = self.expandvars(self.command, variables)
+
+        # variable expansion
+        args = [self.expandvars(arg, variables) for arg in self.args]
+        # globbing
+        args = [self.glob(arg) for arg in self.args]
+        args = [item for sublist in args for item in sublist]
 
         if command in builtins:
             hooks.execute(command, args)
@@ -435,7 +441,7 @@ class CommandNode(Node):
 
         raise CommandNotFoundError(filename)
 
-    def expansions(self, raw, variables):
+    def expandvars(self, raw, variables):
         result = []
 
         i = 0
@@ -471,6 +477,12 @@ class CommandNode(Node):
                 i += 1
 
         return ''.join(result)
+
+    def glob(self, raw):
+        if '*' in raw:
+            return glob.glob(raw, recursive=True)
+        else:
+            return [raw]
 
 class MultiNode(Node):
     '''
