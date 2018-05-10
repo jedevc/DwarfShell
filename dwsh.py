@@ -312,13 +312,11 @@ class Parser:
 
     def command(self):
         if self.accept(TokenType.WORD):
-            command = self.last.lexeme
-
-            args = []
+            args = [self.last.lexeme]
             while self.accept(TokenType.WORD):
                 args.append(self.last.lexeme)
 
-            return CommandNode(command, args)
+            return CommandNode(args)
 
     def redirections(self):
         redirs = []
@@ -389,26 +387,23 @@ class CommandNode(Node):
     A node that contains a single shell command.
 
     Args:
-        command: The name of the executable to run (will be looked up in PATH).
         args: The arguments to be passed to the executable.
     '''
 
-    def __init__(self, command, args):
-        self.command = command
-
+    def __init__(self, args):
         self.args = args
-        self.args.insert(0, command)
 
         self.pid = None
 
     def execute(self, builtins, variables, hooks):
-        command = self.expandvars(self.command, variables)
-
         # variable expansion
         args = [self.expandvars(arg, variables) for arg in self.args]
+
         # globbing
         args = [self.glob(arg) for arg in self.args]
         args = [item for sublist in args for item in sublist]
+
+        command = args[0]
 
         if command in builtins:
             hooks.execute(command, args)
