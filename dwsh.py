@@ -14,19 +14,29 @@ import enum
 import glob
 import contextlib
 
+import argparse
 import readline
 
 def main():
-    sh = Shell()
+    parser = argparse.ArgumentParser(prog='dwsh')
+    parser.add_argument('file', nargs='?', type=open)
+    args = parser.parse_args()
+
+    sh = Shell(args.file)
     sh.run()
 
 # shell
 class Shell:
     '''
     The main shell class.
+
+    Args:
+        source: A file-like object for reading input from.
     '''
 
-    def __init__(self):
+    def __init__(self, source=None):
+        self.source = source
+
         self.builtins = {
             'exit': self._builtin_exit,
             'pwd': self._builtin_pwd,
@@ -41,22 +51,28 @@ class Shell:
         while True:
             try:
                 line = self.readline()
+                if line is None: break
+
                 self.execute(line)
             except EOFError:
                 sys.exit(0)
 
     def readline(self):
         '''
-        Read a command from stdin to execute.
+        Read a command from the input.
 
         Returns:
             A raw string read from stdin.
         '''
 
-        while True:
-            raw = input('$ ')
-            if len(raw) > 0:
-                return raw
+        if self.source:
+            raw = self.source.readline()
+            return raw if len(raw) > 0 else None
+        else:
+            while True:
+                raw = input('$ ')
+                if len(raw) > 0:
+                    return raw
 
     def execute(self, raw):
         '''
