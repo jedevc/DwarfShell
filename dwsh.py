@@ -49,20 +49,18 @@ class Shell:
         '''
 
         while True:
-            try:
-                line = self.readline()
-                if line is None: break
+            line = self.readline()
+            if line is None: break
 
-                self.execute(line)
-            except EOFError:
-                sys.exit(0)
+            self.execute(line)
 
     def readline(self):
         '''
-        Read a command from the input.
+        Read a command from the source file, or if it has not been provided,
+        then from stdin.
 
         Returns:
-            A raw string read from stdin.
+            A raw command string.
         '''
 
         if self.source:
@@ -70,7 +68,11 @@ class Shell:
             return raw if len(raw) > 0 else None
         else:
             while True:
-                raw = input('$ ')
+                try:
+                    raw = input('$ ')
+                except EOFError:
+                    return None
+
                 if len(raw) > 0:
                     return raw
 
