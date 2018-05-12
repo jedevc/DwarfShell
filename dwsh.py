@@ -18,19 +18,21 @@ import argparse
 import readline
 
 def main():
+    # read command line arguments
     parser = argparse.ArgumentParser(prog='dwsh')
     parser.add_argument('file', nargs='?', type=open)
     args = parser.parse_args()
 
+    # detect if reading directly from a terminal
     if os.isatty(0):
         args.prompt = '$ '
     else:
         args.prompt = ''
 
+    # start the shell
     sh = Shell(args.prompt, args.file)
     sh.run()
 
-# shell
 class Shell:
     '''
     The main shell class.
@@ -137,7 +139,6 @@ class Shell:
     def _builtin_cd(self, name, d):
         os.chdir(d)
 
-# lexical analysis
 class TokenType(enum.Enum):
     '''
     Token types that can be recognized by the Tokenizer.
@@ -158,8 +159,8 @@ class Token:
 
     Args:
         ttype: The token meaning.
-        lexeme: The token value (optional).
-        position: The location of the token in the stream (optional).
+        lexeme: The token value.
+        position: The location of the token in the stream.
     '''
 
     def __init__(self, ttype, lexeme=None, position=None):
@@ -284,7 +285,6 @@ class Tokenizer:
             self.char = None
         return self.char
 
-# syntax analysis
 class Parser:
     '''
     Parses a stream of tokens into an Abstract Syntax Tree for later execution.
@@ -394,7 +394,6 @@ class Parser:
         else:
             raise ParseError(f'expected token {ttype}')
 
-# abstract syntax tree
 class Node:
     '''
     A single node in the Abstract Syntax Tree.
@@ -449,6 +448,7 @@ class CommandNode(Node):
         else:
             command = self.lookup(command, variables['PATH'].split(':'))
 
+            # fork process
             pid = os.fork()
             if pid == 0:
                 # child process
@@ -571,7 +571,8 @@ class MultiNode(Node):
 
 class PipeNode(Node):
     '''
-    A node that forwards the output of one node to the input of another.
+    A node that executes two nodes in parallel, forwarding the output of the
+    first to the input of the second.
 
     Args:
         first: The node to pipe the output from.
@@ -583,6 +584,7 @@ class PipeNode(Node):
         self.second = second
 
     def execute(self, builtins, variables, hooks):
+        # setup pipe
         read, write = os.pipe()
         inp = Redirection(0, read)
         outp = Redirection(1, write)
@@ -619,7 +621,6 @@ class RedirectionsNode(Node):
     def wait(self):
         self.base.wait()
 
-# helpers
 class Hooks:
     '''
     Tracker of various hooks to be run during execution.
@@ -715,7 +716,6 @@ class Redirections:
             self.stack.close()
             self.stack = None
 
-# custom exceptions
 class ParseError(ValueError):
     pass
 
