@@ -20,7 +20,7 @@ import readline
 def main():
     # read command line arguments
     parser = argparse.ArgumentParser(prog='dwsh')
-    parser.add_argument('file', nargs='?', type=open)
+    parser.add_argument('file', nargs='?', type=open, help='script file')
     args = parser.parse_args()
 
     # detect if reading directly from a terminal
