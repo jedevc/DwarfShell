@@ -22,7 +22,12 @@ def main():
     parser.add_argument('file', nargs='?', type=open)
     args = parser.parse_args()
 
-    sh = Shell(args.file)
+    if os.isatty(0):
+        args.prompt = '$ '
+    else:
+        args.prompt = ''
+
+    sh = Shell(args.prompt, args.file)
     sh.run()
 
 # shell
@@ -31,10 +36,12 @@ class Shell:
     The main shell class.
 
     Args:
+        prompt: The input to display before reading each line.
         source: A file-like object for reading input from.
     '''
 
-    def __init__(self, source=None):
+    def __init__(self, prompt, source=None):
+        self.prompt = prompt
         self.source = source
 
         self.builtins = {
@@ -69,7 +76,7 @@ class Shell:
         else:
             while True:
                 try:
-                    raw = input('$ ')
+                    raw = input(self.prompt)
                 except EOFError:
                     return None
 
