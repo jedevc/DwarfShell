@@ -8,6 +8,7 @@
 
 import os
 import sys
+import io
 
 import re
 import enum
@@ -21,7 +22,12 @@ def main():
     # read command line arguments
     parser = argparse.ArgumentParser(prog='dwsh')
     parser.add_argument('file', nargs='?', type=open, help='script file')
+    parser.add_argument('-c', '--command', type=io.StringIO, help='command to run')
     args = parser.parse_args()
+
+    # override file with a command if it is provided
+    if args.command is not None:
+        args.file = args.command
 
     # detect if reading directly from a terminal
     if os.isatty(0):
