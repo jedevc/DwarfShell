@@ -5,8 +5,8 @@ system with python.
 
 This was mainly built as a pet project to try and understand the linux
 ecosystem a little better and to take the mystery out of commonly used tools.
-Hopefully, the program is well commented enough to be able to easily pull apart
-and understand how it works.
+Hopefully, the program is documented well enough for anyone to be able to
+understand how it works and tinker with it.
 
 It is *not* meant to be feature complete, so it probably is not a good
 replacement for an everyday shell. However, it does support several more
